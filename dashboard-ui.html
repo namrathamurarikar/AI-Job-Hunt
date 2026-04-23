@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Job Hunt Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    :root { --primary:#1A3C5E;--accent:#2E75B6;--success:#10B981;--warning:#F59E0B;--danger:#EF4444;--purple:#8B5CF6;--bg:#0F172A;--surface:#1E293B;--border:#334155;--text:#E2E8F0;--muted:#94A3B8; }
+    * { box-sizing:border-box; font-family:Inter,sans-serif; }
+    body { margin:0; background:var(--bg); color:var(--text); display:grid; grid-template-columns:260px 1fr; min-height:100vh; }
+    aside { border-right:1px solid var(--border); padding:20px; background:#111b2f; }
+    .brand { font-size:24px; font-weight:700; margin-bottom:16px; }
+    .nav { display:grid; gap:8px; }
+    .nav button { background:transparent; color:var(--text); border:1px solid var(--border); padding:10px; border-radius:10px; text-align:left; cursor:pointer; }
+    .nav button:hover { background:#1e293b; border-color:var(--accent); }
+    .nav button.active { background:#17243a; border-color:var(--accent); color:#fff; }
+    main { padding:20px; overflow:auto; scroll-behavior:smooth; }
+    .dash-section { scroll-margin-top:16px; }
+    .top { display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; margin-bottom:16px; }
+    .muted { color:var(--muted); }
+    .badge { padding:6px 10px; border-radius:999px; font-size:12px; font-weight:600; }
+    .ok { background:#113d2f; color:#86efac; } .warn { background:#4d3a11; color:#fcd34d; }
+    .cards { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin-bottom:14px; }
+    .card,.panel { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:12px; }
+    .kpi { font-size:30px; font-weight:700; margin-top:4px; }
+    .btns { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-bottom:10px; }
+    button.action { background:#17243a; color:var(--text); border:1px solid var(--border); border-radius:12px; padding:14px; cursor:pointer; }
+    button.action.running { border-color:var(--warning); } button.action.done { border-color:var(--success); }
+    #logPanel { display:none; background:#1a1a2e; border:1px solid #2f2f4d; border-radius:12px; padding:8px; margin-bottom:12px; }
+    #logs { height:200px; overflow:auto; white-space:pre-wrap; font-family:Consolas,monospace; font-size:12px; }
+    .stdout { color:#00ff88; } .stderr { color:#ff4444; }
+    table { width:100%; border-collapse:collapse; } th,td { border-bottom:1px solid var(--border); padding:8px; text-align:left; font-size:13px; }
+    .status { padding:4px 8px; border-radius:999px; font-size:12px; }
+    .pending{background:#374151}.evaluated{background:#1d4ed8}.applied{background:#059669}.interviewing{background:#b45309}.rejected{background:#b91c1c}.offer{background:#7c3aed}
+    .grid2 { display:grid; grid-template-columns:2fr 1fr; gap:12px; margin-top:12px; }
+    .resumes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .kanban { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; align-items:start; }
+    @media (max-width:1200px){ .kanban { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+    .col { background:#162236; border:1px solid var(--border); border-radius:10px; padding:8px; min-height:120px; }
+    .ticket { background:#1e2d49; border:1px solid #36517a; border-radius:8px; padding:6px; margin-bottom:6px; cursor:grab; font-size:12px; }
+    .charts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    details { margin-top:10px; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; align-items:center; }
+    .add-job { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; margin:12px 0; padding:12px; background:#162236; border:1px solid var(--border); border-radius:10px; }
+    .add-job label { display:flex; flex-direction:column; gap:4px; font-size:12px; color:var(--muted); }
+    .add-job input[type=text], .add-job input[type=url] { min-width:180px; }
+    .add-job .wide { min-width:280px; flex:1; }
+    input,select { background:#111b2f; color:var(--text); border:1px solid var(--border); border-radius:8px; padding:8px; }
+    button.primary { background:var(--accent); color:#fff; border:none; padding:10px 16px; border-radius:8px; cursor:pointer; font-weight:600; }
+    button.primary:hover { filter:brightness(1.1); }
+    button.primary:disabled { opacity:0.5; cursor:not-allowed; }
+    a { color:#93c5fd; text-decoration:none; }
+    #reportModal { display:none; position:fixed; inset:0; z-index:1000; background:rgba(15,23,42,0.85); align-items:center; justify-content:center; padding:24px; }
+    #reportModal .sheet { background:var(--surface); border:1px solid var(--border); border-radius:14px; max-width:900px; width:100%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 20px 50px rgba(0,0,0,0.5); }
+    #reportModal .sheet-head { padding:16px 20px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+    #reportModal .sheet-head h2 { margin:0; font-size:18px; }
+    #reportModal .sheet-meta { padding:12px 20px; background:#162236; border-bottom:1px solid var(--border); font-size:14px; line-height:1.5; }
+    #reportModal .sheet-body { padding:16px 20px; overflow:auto; flex:1; font-family:Consolas,monospace; font-size:12px; white-space:pre-wrap; color:var(--muted); }
+    #reportModal button.close { background:transparent; border:1px solid var(--border); color:var(--text); padding:8px 14px; border-radius:8px; cursor:pointer; }
+    #reportModal button.close:hover { border-color:var(--accent); }
+  </style>
+</head>
+<body>
+  <aside>
+    <div class="brand">AI Job Hunt</div>
+    <div class="nav" id="sidebarNav">
+      <button type="button" class="nav-btn active" data-target="section-overview">Overview</button>
+      <button type="button" class="nav-btn" data-target="section-pipeline">Pipeline</button>
+      <button type="button" class="nav-btn" data-target="section-resumes">Resumes</button>
+      <button type="button" class="nav-btn" data-target="section-tracker">Tracker</button>
+      <button type="button" class="nav-btn" data-target="section-analytics">Analytics</button>
+      <button type="button" class="nav-btn" data-target="section-settings">Settings</button>
+    </div>
+  </aside>
+  <main id="mainScroll">
+    <section id="section-overview" class="dash-section" aria-label="Overview">
+    <div class="top">
+      <div><h1 style="margin:0">AI Job Hunt Dashboard</h1><div class="muted">Namratha Murarikar — ML Engineer Job Search</div><div id="clock" class="muted"></div></div>
+      <div id="statusBadge" class="badge ok">Pipeline Ready</div>
+    </div>
+    <div id="stats" class="cards"></div>
+    </section>
+
+    <section id="section-pipeline" class="dash-section" aria-label="Pipeline">
+    <div class="panel">
+      <h3 style="margin-top:0">Pipeline Controls</h3>
+      <div class="btns">
+        <button class="action" data-script="scan"><i data-lucide="search"></i> Scan Companies</button>
+        <button class="action" data-script="fetch"><i data-lucide="globe"></i> Fetch from RapidAPI</button>
+        <button class="action" data-script="evaluate"><i data-lucide="bot"></i> Evaluate Pipeline</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+        <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px">
+          Evaluate Job #
+          <input type="text" id="evaluateJobIds" placeholder="e.g. 120 or 120,130,142" style="width:220px;padding:8px" title="Optional: evaluate only selected pipeline rows by #. Comma-separated IDs are supported.">
+        </label>
+        <span class="muted" style="font-size:12px">Leave empty to evaluate full pipeline input.</span>
+      </div>
+      <div class="pdf-controls" style="display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <button type="button" class="action" data-script="pdf"><i data-lucide="file-text"></i> Generate resume (Ollama)</button>
+        <button type="button" class="action" data-script="interview-prep"><i data-lucide="messages-square"></i> Interview prep</button>
+        <label style="font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px">
+          Job #
+          <input type="number" id="pdfJobId" min="1" step="1" placeholder="optional" style="width:88px;padding:8px" title="Same # as the Job Pipeline table above. Set to generate only that role. Leave empty = latest pending row only.">
+        </label>
+        <label style="font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;cursor:pointer" title="Ignore output/resume-index.json dedupe so a new PDF is always written (use if a past run claimed success but the file is missing).">
+          <input type="checkbox" id="pdfForce"> Force regenerate
+        </label>
+        <span class="muted" style="font-size:12px;max-width:520px">With a <strong>#</strong>, only that pipeline row is generated (any checkbox state). Leave empty to process only the <strong>latest pending</strong> <code>[ ]</code> line — not the whole pipeline.</span>
+      </div>
+      <div id="logPanel"><button id="clearLog">Clear</button><div id="logs"></div></div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0">Job Pipeline</h3>
+      <p class="muted" style="margin:0 0 8px 0;font-size:13px">Add a posting you found (e.g. already applied). It is saved to <code>data/pipeline.md</code> and optionally <code>data/applications.md</code>. Status changes in the table use the pipeline line first, then sync the tracker row when one exists.</p>
+      <form class="add-job" id="addJobForm" onsubmit="return false">
+        <label>Job URL *
+          <input class="wide" type="url" id="addJobUrl" placeholder="https://..." required autocomplete="off">
+        </label>
+        <label>Company *
+          <input type="text" id="addJobCompany" placeholder="Acme Inc" required autocomplete="organization">
+        </label>
+        <label>Title *
+          <input class="wide" type="text" id="addJobTitle" placeholder="Senior ML Engineer" required autocomplete="off">
+        </label>
+        <label>Status
+          <select id="addJobStatus">
+            <option value="applied" selected>applied (already submitted)</option>
+            <option value="pending">pending (not yet reviewed)</option>
+            <option value="evaluated">evaluated</option>
+            <option value="interviewing">interviewing</option>
+            <option value="rejected">rejected</option>
+            <option value="offer">offer</option>
+          </select>
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:8px;cursor:pointer" title="Optional: sync with data/applications.md for career-ops merge tools. Does not require generating a resume.">
+          <input type="checkbox" id="addJobTracker" checked>
+          Also add row to <code>applications.md</code> (optional)
+        </label>
+        <button type="submit" class="primary" id="addJobBtn">Add to pipeline</button>
+      </form>
+      <div class="controls">
+        <input id="q" placeholder="Search title/company">
+        <select id="statusFilter"><option value="">All statuses</option><option>pending</option><option>evaluated</option><option>applied</option><option>interviewing</option><option>rejected</option><option>offer</option></select>
+        <select id="sortBy"><option value="date">Date</option><option value="score">Score</option><option value="company">Company</option><option value="status">Status</option></select>
+      </div>
+      <table><thead><tr><th>#</th><th>Job Title</th><th>Company</th><th>Status</th><th>Score</th><th>Date Added</th><th>Actions</th></tr></thead><tbody id="jobsTbody"></tbody></table>
+    </div>
+    </section>
+
+    <div class="grid2">
+      <div class="panel dash-section" id="section-resumes" aria-label="Resumes">
+        <h3 style="margin-top:0">Resumes Generated</h3>
+        <p class="muted" style="margin:0 0 10px 0;font-size:12px">Lists <code>.pdf</code> / <code>.html</code> / <code>.docx</code> under <code>output/</code> (newest first). Ollama: PDF at <code>output/cv-…-DATE.pdf</code>, HTML at <code>output/ollama-html/</code>. Click <strong>Refresh</strong> in the browser or revisit this page if a run just finished.</p>
+        <div id="resumes" class="resumes"></div>
+      </div>
+      <div class="panel dash-section" id="section-settings" aria-label="Settings">
+        <h3 style="margin-top:0">Settings</h3>
+        <details open>
+          <summary>Current Config</summary>
+          <pre id="cfg" style="white-space:pre-wrap"></pre>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:10px;cursor:pointer">
+            <input type="checkbox" id="autoScoreToggle" checked>
+            Auto-score new pipeline jobs (heuristic 1-5 when no tracker/report score exists)
+          </label>
+        </details>
+      </div>
+    </div>
+
+    <section id="section-tracker" class="dash-section" aria-label="Application tracker">
+    <div class="panel" style="margin-top:12px">
+      <h3 style="margin-top:0">Application Tracker</h3>
+      <p class="muted" style="margin:0 0 12px 0;font-size:13px;max-width:900px">
+        <strong>Active applications only</strong>—roles still in <em>pending</em> or <em>evaluated</em> (not yet applied) stay in the <strong>Job Pipeline</strong> table above, not here.
+        Status comes from <code>data/pipeline.md</code> / <code>data/applications.md</code>. Drag cards or use the row dropdown to move stages. Resumes are optional; you can reuse a file from <code>output/</code>.
+      </p>
+      <div id="kanban" class="kanban"></div>
+    </div>
+    </section>
+
+    <section id="section-analytics" class="dash-section" aria-label="Analytics">
+    <div class="panel" style="margin-top:12px"><h3 style="margin-top:0">Analytics</h3><div class="charts"><canvas id="chartStatus"></canvas><canvas id="chartDaily"></canvas><canvas id="chartCompanies"></canvas><canvas id="chartScores"></canvas></div></div>
+    </section>
+  </main>
+
+  <div id="reportModal" role="dialog" aria-modal="true" aria-labelledby="reportModalTitle">
+    <div class="sheet">
+      <div class="sheet-head">
+        <div>
+          <h2 id="reportModalTitle">Report</h2>
+          <div id="reportModalFile" class="muted" style="font-size:12px;margin-top:4px"></div>
+        </div>
+        <button type="button" class="close" id="reportModalClose">Close</button>
+      </div>
+      <div id="reportModalMeta" class="sheet-meta"></div>
+      <div id="reportModalBody" class="sheet-body"></div>
+    </div>
+  </div>
+
+  <script>
+    let jobs = [], apps = [], resumes = [];
+    const charts = {};
+    const fmt = (n) => Number.isFinite(+n) ? +n : 0;
+    /** Kanban columns: active application stages only (excludes pending / evaluated — see Job Pipeline table). */
+    const trackerColumns = [
+      { id: 'applied', label: 'Applied' },
+      { id: 'screening', label: 'Screening' },
+      { id: 'interview', label: 'Interview' },
+      { id: 'offer', label: 'Offer' },
+      { id: 'rejected', label: 'Rejected' },
+    ];
+
+    function clock(){ document.getElementById('clock').textContent = new Date().toLocaleString(); }
+    setInterval(clock, 1000); clock();
+
+    function setRunning(r, name='') {
+      const b = document.getElementById('statusBadge');
+      b.className = 'badge ' + (r ? 'warn' : 'ok');
+      b.textContent = r ? `Running... ${name}` : 'Pipeline Ready';
+    }
+
+    async function j(path, opts) { const r = await fetch(path, opts); return r.json(); }
+
+    function statCard(label, value){ return `<div class="card"><div class="muted">${label}</div><div class="kpi">${value}</div></div>`; }
+    async function loadStats(){
+      const s = await j('/api/stats');
+      document.getElementById('stats').innerHTML = [
+        statCard('In Pipeline', s.pipelineTotal),
+        statCard('Applied', s.applied),
+        statCard('In Progress', s.inProgress),
+        statCard('Resumes Made', s.resumesGenerated),
+        statCard('Report files', s.evaluationsDone),
+      ].join('');
+      setRunning(s.running, s.runningScript || '');
+    }
+
+    function scoreNum(v){ const m = String(v||'').match(/(\d+(\.\d+)?)/); return m ? +m[1] : -1; }
+    function jobRows(){
+      const q = document.getElementById('q').value.toLowerCase();
+      const sf = document.getElementById('statusFilter').value;
+      const sort = document.getElementById('sortBy').value;
+      let out = jobs.filter(x => (!q || x.title.toLowerCase().includes(q) || x.company.toLowerCase().includes(q)) && (!sf || x.status===sf));
+      out.sort((a,b)=>{
+        if(sort==='score') return scoreNum(b.score)-scoreNum(a.score);
+        if(sort==='company') return a.company.localeCompare(b.company);
+        if(sort==='status') return a.status.localeCompare(b.status);
+        return String(b.dateAdded).localeCompare(String(a.dateAdded));
+      });
+      return out;
+    }
+
+    function renderJobs(){
+      const tbody = document.getElementById('jobsTbody');
+      tbody.innerHTML = jobRows().map(jb => `
+        <tr>
+          <td>${jb.id}</td><td>${jb.title}</td><td>${jb.company}</td>
+          <td><span class="status ${jb.status}">${jb.status}</span></td>
+          <td>${jb.score || '—'}</td><td>${jb.dateAdded || '—'}</td>
+          <td>
+            <button type="button" onclick="viewReport(${jb.id})">View Report</button>
+            <button type="button" onclick="viewResume(${jb.id})">View Resume</button>
+            <button type="button" onclick="createInterviewPrep(${jb.id})">Interview Prep</button>
+            <select onchange="changeJobStatus(${jb.id}, this.value)">
+              ${['pending','evaluated','applied','interviewing','rejected','offer'].map(s=>`<option ${s===jb.status?'selected':''}>${s}</option>`).join('')}
+            </select>
+            <a href="${jb.url}" target="_blank">Open Job URL</a>
+          </td>
+        </tr>`).join('');
+    }
+
+    /**
+     * Map live job status → Kanban column id, or null if not shown (pending/evaluated = inbox only).
+     */
+    function statusToKanbanColumn(status) {
+      const s = String(status || 'pending').toLowerCase();
+      if (s === 'pending' || s === 'evaluated') return null;
+      if (s === 'rejected' || /reject/.test(s)) return 'rejected';
+      if (s === 'offer') return 'offer';
+      if (s === 'interviewing' || s === 'interview') return 'interview';
+      if (/screen/.test(s)) return 'screening';
+      if (s === 'applied') return 'applied';
+      return null;
+    }
+
+    /** Drop target column id → POST /api/job/:id/status body.status */
+    function kanbanColumnToStatus(colId) {
+      const map = {
+        applied: 'applied',
+        screening: 'interviewing',
+        interview: 'interviewing',
+        offer: 'offer',
+        rejected: 'rejected',
+      };
+      return map[colId] || 'applied';
+    }
+
+    function isAutoScoreEnabled() {
+      const v = localStorage.getItem('dashboard:autoScore');
+      if (v === null) return true;
+      return v === '1';
+    }
+
+    async function loadJobs(){
+      const autoScore = isAutoScoreEnabled() ? '1' : '0';
+      jobs = await j(`/api/jobs?autoScore=${autoScore}`);
+      renderJobs();
+      renderCharts();
+      await loadTracker();
+    }
+
+    document.getElementById('addJobForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('addJobBtn');
+      const body = {
+        url: document.getElementById('addJobUrl').value.trim(),
+        company: document.getElementById('addJobCompany').value.trim(),
+        title: document.getElementById('addJobTitle').value.trim(),
+        status: document.getElementById('addJobStatus').value,
+        addToApplications: document.getElementById('addJobTracker').checked,
+      };
+      btn.disabled = true;
+      try {
+        const r = await fetch('/api/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          alert(data.error || `Could not add job (${r.status})`);
+          return;
+        }
+        document.getElementById('addJobUrl').value = '';
+        document.getElementById('addJobCompany').value = '';
+        document.getElementById('addJobTitle').value = '';
+        if (data.trackerNote) alert(data.trackerNote);
+        else alert(data.trackerRow ? 'Added to pipeline and applications tracker.' : 'Added to pipeline.');
+        await refreshAll();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    async function changeJobStatus(id, status){ await j(`/api/job/${id}/status`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({status})}); await loadJobs(); await loadStats(); }
+    window.changeJobStatus = changeJobStatus;
+
+    function escHtml(t) {
+      return String(t ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function reportFileFromHint(hint) {
+      if (!hint) return null;
+      const m = String(hint).match(/\((reports\/[^)]+\.md)\)/i);
+      return m ? m[1].replace(/^reports\//i, '') : null;
+    }
+
+    function openReportModal(job, fileName, markdown, opts = {}) {
+      const modal = document.getElementById('reportModal');
+      const placeholder = Boolean(opts.placeholder);
+      document.getElementById('reportModalTitle').textContent = `${job.company} — ${job.title}`;
+      if (placeholder) {
+        document.getElementById('reportModalFile').textContent = fileName
+          ? `Snapshot file: reports/${fileName}`
+          : 'Auto-generated preview (no reports/*.md matched yet — run Evaluate to save a real report file)';
+      } else {
+        document.getElementById('reportModalFile').textContent = fileName
+          ? `Snapshot file: reports/${fileName}${markdown ? '' : ' (file missing on disk)'}`
+          : 'Report loaded via job URL / slug match (not from tracker link)';
+      }
+      const snapshotNote = placeholder
+        ? 'The body below is an <strong>auto-generated preview</strong> from pipeline + cv.md so every job has something to read. Run Evaluate to replace it with a real scored report in <code>reports/</code>.'
+        : 'The evaluation report below is a frozen snapshot from when it was generated. Pipeline status uses live data from <code>data/pipeline.md</code> / <code>data/applications.md</code>. You can reuse an existing resume for a new role—no new PDF required for tracker updates.';
+      document.getElementById('reportModalMeta').innerHTML =
+        '<p style="margin:0 0 8px 0"><strong>Current pipeline status (live):</strong> ' +
+        `<span class="status ${escHtml(job.status)}">${escHtml(job.status)}</span></p>` +
+        `<p style="margin:0 0 8px 0"><strong>Score in tracker:</strong> ${escHtml(job.score)}</p>` +
+        (job.url
+          ? `<p style="margin:0 0 8px 0"><strong>Job URL:</strong> <a href="${encodeURI(job.url)}" target="_blank" rel="noopener noreferrer">${escHtml(job.url)}</a></p>`
+          : '') +
+        `<p class="muted" style="margin:0;font-size:12px">${snapshotNote}</p>`;
+      document.getElementById('reportModalBody').textContent =
+        markdown ||
+        'No evaluation report file was found for this row. Run Evaluate Pipeline or link a report in applications.md — you can still track status in the table and Kanban.';
+      modal.style.display = 'flex';
+    }
+
+    function closeReportModal() {
+      document.getElementById('reportModal').style.display = 'none';
+    }
+
+    async function viewReport(jobId) {
+      const job = jobs.find((x) => x.id === jobId);
+      if (!job) return alert('Job not found — refresh the page.');
+      let fileName = reportFileFromHint(job.reportHint);
+      let markdown = '';
+      let placeholder = false;
+      if (fileName) {
+        const res = await fetch(`/api/report/${encodeURIComponent(fileName)}`);
+        if (res.ok) markdown = await res.text();
+      }
+      if (!markdown) {
+        const snap = await fetch(`/api/job/${jobId}/report`);
+        if (snap.ok) {
+          const data = await snap.json().catch(() => ({}));
+          if (data.markdown) {
+            markdown = data.markdown;
+            fileName = data.filename || fileName;
+            placeholder = Boolean(data.placeholder);
+          }
+        }
+      }
+      openReportModal(job, fileName, markdown, { placeholder });
+    }
+    window.viewReport = viewReport;
+
+    async function viewResume(jobId) {
+      const job = jobs.find((x) => x.id === jobId);
+      if (!job) return alert('Job not found — refresh the page.');
+      const all = await j('/api/resumes');
+      const slug = job.company.toLowerCase().replace(/\s+/g, '-');
+      const hit = all.find(
+        (r) =>
+          r.name.toLowerCase().includes(slug) ||
+          r.name.toLowerCase().includes(String(job.title).toLowerCase().slice(0, 12)),
+      );
+      if (!hit) return alert('No matching resume found in output/');
+      window.open(`/api/resume/${encodeURIComponent(hit.name)}`, '_blank');
+    }
+    window.viewResume = viewResume;
+
+    async function loadResumes(){
+      resumes = await j('/api/resumes');
+      document.getElementById('resumes').innerHTML = resumes.map(r => `
+        <div class="card"><div style="font-weight:600">${r.name}</div>
+        <div class="muted">${r.relPath || r.name}</div>
+        <div class="muted">${new Date(r.mtime).toLocaleString()} • ${(r.size/1024).toFixed(1)} KB</div>
+        <div style="margin-top:8px"><a href="/api/resume?path=${encodeURIComponent(r.relPath || r.name)}">Download</a></div></div>`).join('') || '<div class="muted">No resumes in output/ yet.</div>';
+    }
+
+    async function loadConfig(){
+      const c = await j('/api/config');
+      document.getElementById('cfg').textContent =
+`Target roles: ${JSON.stringify(c.targetRoles?.primary || [])}
+Location: ${JSON.stringify(c.location?.city || c.location || '')}
+Industries: ${(c.industries || []).join(', ')}
+Last scan: ${c.lastScan || 'n/a'}
+RAPIDAPI_KEY: ${c.rapidApiKey ? 'Set ✓' : 'Missing ✗'}
+GEMINI_API_KEY: ${c.geminiApiKey ? 'Set ✓' : 'Missing ✗'}`;
+    }
+
+    async function loadTracker(){
+      await j('/api/history');
+      const map = { applied: [], screening: [], interview: [], offer: [], rejected: [] };
+      jobs.forEach((j) => {
+        const col = statusToKanbanColumn(j.status);
+        if (!col) return;
+        (map[col] || []).push(j);
+      });
+      document.getElementById('kanban').innerHTML = trackerColumns.map(({ id, label }) => `
+        <div class="col" data-col="${id}" ondragover="event.preventDefault()" ondrop="dropCard(event,'${id}')">
+          <div style="font-weight:700">${label}</div>
+          <div class="muted" style="font-size:11px;margin-bottom:6px">${(map[id] || []).length} roles</div>
+          ${(map[id] || []).map((c) => `<div class="ticket" draggable="true" ondragstart="dragCard(event, ${c.id})">${escHtml(c.company)}<br>${escHtml(c.title)}</div>`).join('')}
+        </div>`).join('');
+    }
+    let dragId = null;
+    window.dragCard = (_, id) => { dragId = id; };
+    window.dropCard = async (_, col) => {
+      if (!dragId) return;
+      await changeJobStatus(dragId, kanbanColumnToStatus(col));
+      dragId = null;
+    };
+
+    async function runScript(name, btn, extraQuery = {}){
+      document.getElementById('logPanel').style.display='block';
+      btn.classList.add('running');
+      const logs = document.getElementById('logs');
+      let url = `/api/run/${encodeURIComponent(name)}`;
+      if (name === 'pdf' || name === 'interview-prep' || name === 'evaluate') {
+        const jid = document.getElementById('pdfJobId')?.value?.trim();
+        const evaluateIds = document.getElementById('evaluateJobIds')?.value?.trim();
+        const qs = new URLSearchParams();
+        if (extraQuery.jobId) qs.set('jobId', String(extraQuery.jobId));
+        else if (name === 'evaluate' && evaluateIds) qs.set('jobId', evaluateIds);
+        else if (jid) qs.set('jobId', jid);
+        if (name === 'pdf' && document.getElementById('pdfForce')?.checked) qs.set('force', '1');
+        const q = qs.toString();
+        if (q) url += `?${q}`;
+      }
+      const es = new EventSource(url);
+      const add = (cls, line) => { const d=document.createElement('div'); d.className=cls; d.textContent=`[${new Date().toLocaleTimeString()}] ${line}`; logs.appendChild(d); logs.scrollTop=logs.scrollHeight; };
+      es.addEventListener('data', e => add('stdout', JSON.parse(e.data).line));
+      es.addEventListener('error', e => { try{add('stderr', JSON.parse(e.data).line);}catch{} });
+      es.addEventListener('done', (e) => {
+        es.close();
+        btn.classList.remove('running');
+        btn.classList.add('done');
+        setTimeout(() => btn.classList.remove('done'), 3000);
+        // Do not await: refresh walks APIs; a huge output/ tree used to block the button for many minutes.
+        void refreshAll().catch(() => {});
+      });
+    }
+
+    async function createInterviewPrep(jobId) {
+      const btn = document.querySelector('.action[data-script="interview-prep"]');
+      if (!btn) return alert('Interview prep button not found.');
+      await runScript('interview-prep', btn, { jobId });
+    }
+    window.createInterviewPrep = createInterviewPrep;
+
+    async function renderCharts(){
+      const st = {};
+      jobs.forEach(j => st[j.status]=(st[j.status]||0)+1);
+      const daily = {};
+      jobs.forEach(j => { if(j.dateAdded && j.dateAdded!=='—') daily[j.dateAdded]=(daily[j.dateAdded]||0)+1; });
+      const comp = {};
+      jobs.forEach(j => comp[j.company]=(comp[j.company]||0)+1);
+      const scores = [0,0,0,0,0];
+      jobs.forEach(j => { const s=Math.floor(scoreNum(j.score)); if(s>=1 && s<=5) scores[s-1]++; });
+      function chart(id,type,data,opts={}){ if(charts[id]) charts[id].destroy(); charts[id]=new Chart(document.getElementById(id),{type,data,options:{plugins:{legend:{labels:{color:'#E2E8F0'}}},scales:{x:{ticks:{color:'#94A3B8'}},y:{ticks:{color:'#94A3B8'}}},...opts}}); }
+      chart('chartStatus','doughnut',{labels:Object.keys(st),datasets:[{data:Object.values(st)}]});
+      chart('chartDaily','bar',{labels:Object.keys(daily),datasets:[{label:'Jobs/day',data:Object.values(daily)}]});
+      chart('chartCompanies','bar',{labels:Object.entries(comp).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[0]),datasets:[{label:'Top companies',data:Object.entries(comp).sort((a,b)=>b[1]-a[1]).slice(0,8).map(x=>x[1])}]},{indexAxis:'y'});
+      chart('chartScores','bar',{labels:['1','2','3','4','5'],datasets:[{label:'Score dist',data:scores}]});
+    }
+
+    async function refreshAll(){
+      await Promise.all([loadStats(), loadResumes(), loadConfig()]);
+      await loadJobs();
+      lucide.createIcons();
+    }
+
+    function initSidebarNav() {
+      const nav = document.getElementById('sidebarNav');
+      if (!nav) return;
+      nav.querySelectorAll('.nav-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.dataset.target;
+          const el = id ? document.getElementById(id) : null;
+          if (!el) return;
+          nav.querySelectorAll('.nav-btn').forEach((b) => b.classList.remove('active'));
+          btn.classList.add('active');
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+      });
+    }
+    initSidebarNav();
+
+    const autoScoreToggle = document.getElementById('autoScoreToggle');
+    if (autoScoreToggle) {
+      autoScoreToggle.checked = isAutoScoreEnabled();
+      autoScoreToggle.addEventListener('change', async () => {
+        localStorage.setItem('dashboard:autoScore', autoScoreToggle.checked ? '1' : '0');
+        await loadJobs();
+      });
+    }
+
+    document.getElementById('reportModalClose').addEventListener('click', closeReportModal);
+    document.getElementById('reportModal').addEventListener('click', (e) => {
+      if (e.target.id === 'reportModal') closeReportModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeReportModal();
+    });
+
+    document.querySelectorAll('.action').forEach(b => b.onclick = () => runScript(b.dataset.script, b));
+    document.getElementById('clearLog').onclick = ()=>{ document.getElementById('logs').innerHTML=''; document.getElementById('logPanel').style.display='none'; };
+    ['q','statusFilter','sortBy'].forEach(id => document.getElementById(id).addEventListener('input', renderJobs));
+
+    const updates = new EventSource('/api/updates');
+    updates.addEventListener('refresh', () => refreshAll());
+    refreshAll();
+  </script>
+</body>
+</html>
